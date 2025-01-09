@@ -1,11 +1,13 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { ResourcesService } from './resources.service';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('resources')
 export class ResourcesController {
   constructor(private readonly resourcesService: ResourcesService) {}
 
   @Get() //get all resources
+  @UseGuards(AuthGuard('jwt'))
   findAll() {
     const resources = this.resourcesService.findAll();
     if (!resources) {
