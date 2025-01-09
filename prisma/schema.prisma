@@ -15,11 +15,17 @@ datasource db {
 
 model User {
   id        Int        @id @default(autoincrement())
+  name      String     @default("Default Name")
   email     String     @unique
+  image     String?
   password  String
+  isActive  Boolean    @default(true)
+  isAdmin   Boolean    @default(false)
   resources Resource[]
+  role      String     @default("user")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  favorites Resource[] @relation("UserFavorites")
 }
 
 model Resource {
@@ -32,4 +38,6 @@ model Resource {
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  User User[] @relation("UserFavorites")
 }
