@@ -10,20 +10,26 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email); // Implémente findByEmail dans UsersService
+  async validateUser(email: string, password: string) {
+    const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
-      const { password, ...result } = user;
-      return result; // Renvoie l'utilisateur sans le mot de passe
+      const { password, ...result } = user; // Exclure le mot de passe des résultats
+      return result;
     }
-    throw new UnauthorizedException('Email ou mot de passe incorrect');
+    return null;
   }
 
   async login(user: any) {
     const payload = { sub: user.id, email: user.email };
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+
     return {
-      access_token: this.jwtService.sign(payload),
+      accessToken,
+      refreshToken,
+      user,
     };
   }
 }
+
 
