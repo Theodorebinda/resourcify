@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient, Resource } from '@prisma/client';
+import { Resource } from '@prisma/client';
+import { PrismaService } from 'src/services/prisma.service';
 
 @Injectable()
 export class ResourcesService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaService) {} // Injection de PrismaService
 
   async findAll(): Promise<Resource[]> {
     return this.prisma.resource.findMany();

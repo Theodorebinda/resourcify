@@ -5,12 +5,16 @@ import { ResourcesService } from './resources.service';
 export class ResourcesController {
   constructor(private readonly resourcesService: ResourcesService) {}
 
-  @Get()
+  @Get() //get all resources
   findAll() {
-    return this.resourcesService.findAll();
+    const resources = this.resourcesService.findAll();
+    if (!resources) {
+      return { message: 'Aucune ressource trouvée' }; // Message si aucune ressource
+    }
+    return resources;
   }
 
-  @Get(':id')
+  @Get(':id') //get handle ressources
   findOne(@Param('id') id: number) {
     return this.resourcesService.findOne(+id);
   }
