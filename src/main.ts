@@ -6,7 +6,7 @@ async function bootstrap() {
 
   // Activer CORS
   app.enableCors({
-    origin: "http://localhost:3001",
+    origin: ["http://localhost:3001"],
     methods: "GET,HEAD,POST,PATCH,DELETE",
     credentials: true,
     optionsSuccessStatus: 200,

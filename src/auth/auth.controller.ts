@@ -21,14 +21,18 @@ export class AuthController {
   async login(@Body() body: any) {
     const { email, password } = body;
 
-    // Valider l'utilisateur
-    const user = await this.authService.validateUser(email, password);
-    if (!user) {
+    try {
+      // Valider l'utilisateur
+      const user = await this.authService.validateUser(email, password);
+      if (!user) {
+        throw new UnauthorizedException("User n'existe pas");
+      }
+
+      // Appeler la méthode `login` avec l'utilisateur valide
+      return this.authService.login(user);
+    } catch (error) {
       throw new UnauthorizedException("Invalid email or password");
     }
-
-    // Appeler la méthode `login` avec l'utilisateur valide
-    return this.authService.login(user);
   }
 
   // Méthode pour hacher les mots de passe
