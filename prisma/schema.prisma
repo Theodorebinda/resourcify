@@ -26,6 +26,8 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   favorites Resource[] @relation("UserFavorites")
+  comments  Comment[]
+  reviews   Review[]
 }
 
 model Resource {
@@ -39,5 +41,30 @@ model Resource {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  User User[] @relation("UserFavorites")
+  User     User[]    @relation("UserFavorites")
+  comments Comment[]
+  reviews  Review[]
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  content    String
+  userId     Int
+  resourceId Int
+  user       User     @relation(fields: [userId], references: [id])
+  resource   Resource @relation(fields: [resourceId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Review {
+  id         Int      @id @default(autoincrement())
+  rating     Int
+  content    String?
+  userId     Int
+  resourceId Int
+  user       User     @relation(fields: [userId], references: [id])
+  resource   Resource @relation(fields: [resourceId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
