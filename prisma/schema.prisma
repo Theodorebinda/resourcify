@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,58 +10,269 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --------------------------------------
+// IDENTITY & PROFILE
+// --------------------------------------
+
 model User {
-  id        Int        @id @default(autoincrement())
-  name      String     @default("Default Name")
-  email     String     @unique
-  image     String?
-  password  String
-  isActive  Boolean    @default(true)
-  isAdmin   Boolean    @default(false)
-  resources Resource[]
-  role      String     @default("user")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  favorites Resource[] @relation("UserFavorites")
-  comments  Comment[]
-  reviews   Review[]
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  name            String
+  password        String
+  avatarUrl       String?
+  bio             String?
+  role            UserRole  @default(USER)
+  isActive        Boolean   @default(true)
+  
+  // Scoring & Stats for intelligence
+  reputationScore Float     @default(0.0) // Calculated based on contributions
+  
+  // Relations
+  resources       Resource[]        @relation("UploadedResources")
+  preferences     UserPreference[]
+  interactions    Interaction[]
+  discussions     DiscussionParticipant[]
+  messages        Message[]
+  recommendations Recommendation[]
+  
+  // Matching relationships (Self-referential M:N via pivot table if desired, 
+  // currently modeled implicitly via matching service, but explicit matches can be stored)
+  matchesAsUser1  UserMatch[] @relation("MatchUser1")
+  matchesAsUser2  UserMatch[] @relation("MatchUser2")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
-model Resource {
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+// --------------------------------------
+// PREFERENCES ENGINE
+// --------------------------------------
+
+// The system's taxonomy of interests (e.g., "NestJS", "Architecture", "Gardening")
+model Preference {
   id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  isFree      Boolean
-  price       Float?
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  name        String   @unique
+  slug        String   @unique
+  category    String?  // e.g., "Technology", "Lifestyle"
+  
+  // Relations
+  users       UserPreference[]
+  resources   ResourcePreference[]
+  discussions Discussion[]
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  User     User[]    @relation("UserFavorites")
-  comments Comment[]
-  reviews  Review[]
 }
 
-model Comment {
-  id         Int      @id @default(autoincrement())
-  content    String
-  userId     Int
-  resourceId Int
-  user       User     @relation(fields: [userId], references: [id])
-  resource   Resource @relation(fields: [resourceId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+// Pivot table: User <-> Preference with Weight
+// Weight can start at 1.0 (explicit selection) and grow/shrink with interactions
+model UserPreference {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  preferenceId Int
+  
+  weight       Float      @default(1.0) // 0.0 to 10.0 intensity
+  isExplicit   Boolean    @default(true) // True if user selected it, False if inferred
+  
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preference   Preference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, preferenceId])
 }
 
-model Review {
-  id         Int      @id @default(autoincrement())
-  rating     Int
-  content    String?
+// --------------------------------------
+// RESOURCES & CONTENT
+// --------------------------------------
+
+model Resource {
+  id            Int        @id @default(autoincrement())
+  title         String
+  description   String     @db.Text
+  url           String?
+  type          ResourceType
+  isPublic      Boolean    @default(true)
+  
+  // Metadata
+  authorId      Int
+  author        User       @relation("UploadedResources", fields: [authorId], references: [id])
+  
+  // Intelligence tags
+  tags          ResourcePreference[]
+  
+  // Stats
+  viewsCount    Int        @default(0)
+  likesCount    Int        @default(0)
+  qualityScore  Float      @default(0.0) // Computed background score
+
+  interactions  Interaction[]
+  recommendations Recommendation[]
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+enum ResourceType {
+  ARTICLE
+  VIDEO
+  CODE_SNIPPET
+  BOOK
+  TOOL
+  OTHER
+}
+
+// Pivot table: Resource <-> Preference
+// A resource can belong to "NestJS" (weight 1.0) and "Architecture" (weight 0.8)
+model ResourcePreference {
+  id           Int        @id @default(autoincrement())
+  resourceId   Int
+  preferenceId Int
+  
+  weight       Float      @default(1.0) // How relevant is this resource to the preference?
+  
+  resource     Resource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  preference   Preference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, preferenceId])
+}
+
+// --------------------------------------
+// BEHAVIORAL INTELLIGENCE
+// --------------------------------------
+
+model Interaction {
+  id         Int             @id @default(autoincrement())
   userId     Int
   resourceId Int
-  user       User     @relation(fields: [userId], references: [id])
-  resource   Resource @relation(fields: [resourceId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  
+  type       InteractionType
+  weight     Float           @default(1.0) // e.g., VIEW=1, LIKE=5, SHARE=10
+  
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   Resource        @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  
+  metadata   Json?           // Extra data (e.g. read duration, scroll depth)
+
+  createdAt  DateTime        @default(now())
+  
+  @@index([userId, type])
+  @@index([resourceId, type])
+}
+
+enum InteractionType {
+  VIEW
+  LIKE
+  SHARE
+  COMMENT
+  SAVE
+  SKIP   // Explicit negative signal
+}
+
+// --------------------------------------
+// USER MATCHING & CONNECTIONS
+// --------------------------------------
+
+model UserMatch {
+  id            Int      @id @default(autoincrement())
+  user1Id       Int
+  user2Id       Int
+  
+  score         Float    // Similarity score (0.0 to 1.0)
+  status        MatchStatus @default(PENDING)
+  
+  user1         User     @relation("MatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2         User     @relation("MatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([user1Id, user2Id])
+}
+
+enum MatchStatus {
+  SUGGESTED
+  PENDING
+  ACCEPTED
+  REJECTED
+  CONNECTED
+}
+
+// --------------------------------------
+// DISCUSSIONS (Targeted by Preference)
+// --------------------------------------
+
+model Discussion {
+  id           Int      @id @default(autoincrement())
+  title        String
+  
+  preferenceId Int
+  preference   Preference @relation(fields: [preferenceId], references: [id])
+  
+  participants DiscussionParticipant[]
+  messages     Message[]
+  
+  isClosed     Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DiscussionParticipant {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  discussionId Int
+  
+  role         ParticipantRole @default(MEMBER)
+  
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+
+  joinedAt     DateTime   @default(now())
+
+  @@unique([userId, discussionId])
+}
+
+enum ParticipantRole {
+  MEMBER
+  MODERATOR
+}
+
+model Message {
+  id           Int        @id @default(autoincrement())
+  discussionId Int
+  senderId     Int
+  content      String     @db.Text
+  
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  sender       User       @relation(fields: [senderId], references: [id])
+  
+  createdAt    DateTime   @default(now())
+}
+
+// --------------------------------------
+// RECOMMENDATIONS ENGINE
+// --------------------------------------
+
+// Stored pre-calculated recommendations for speed
+model Recommendation {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  resourceId  Int
+  
+  score       Float    // Relevance score
+  reason      String?  // "Because you liked X", "Trending in Architecture"
+  
+  isViewed    Boolean  @default(false)
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  
+  generatedAt DateTime @default(now())
+
+  @@unique([userId, resourceId])
 }
