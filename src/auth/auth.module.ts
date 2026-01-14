@@ -8,7 +8,7 @@ import { AuthController } from './auth.controller';
 
 @Module({
   imports: [
-    UsersModule, // Pour accéder aux utilisateurs
+    UsersModule,
     PassportModule,
     JwtModule.register({
       secret: 'secretKey', // Utilise une clé secrète sécurisée (à mettre dans des variables d'environnement)
